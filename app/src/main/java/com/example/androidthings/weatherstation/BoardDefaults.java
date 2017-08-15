@@ -33,6 +33,15 @@ public final class BoardDefaults {
     private static final String DEVICE_IMX7D_PICO = "imx7d_pico";
     private static String sBoardVariant = "";
 
+    //configuration for the RPI3
+    protected static final String RPI_BUTTON_A = "BCM21";
+    protected static final String RPI_BUTTON_B = "BCM20";
+    protected static final String RPI_BUTTON_C = "BCM16";
+
+    protected static final String RPI_LED_RED = "BCM6";
+    protected static final String RPI_LED_GREEN = "BCM19";
+    protected static final String RPI_LED_BLUE = "BCM26";
+
     public static String getButtonGpioPin() {
         switch (getBoardVariant()) {
             case DEVICE_EDISON_ARDUINO:
