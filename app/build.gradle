@@ -44,7 +44,7 @@ dependencies {
 
     provided 'com.google.android.things:androidthings:0.4.1-devpreview'
 
-    compile 'com.google.android.things.contrib:driver-rainbowhat:0.4'
+    compile 'com.google.android.things.contrib:driver-rainbowhat:0.5'
     compile 'io.reactivex:rxandroid:1.2.1'
     compile 'org.eclipse.paho:org.eclipse.paho.client.mqttv3:1.0.2'
 
