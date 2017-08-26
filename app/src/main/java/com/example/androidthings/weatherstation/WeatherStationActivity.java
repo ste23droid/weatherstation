@@ -43,8 +43,12 @@ import com.google.android.things.pio.Gpio;
 import com.google.android.things.pio.PeripheralManagerService;
 
 import java.io.IOException;
+import java.io.RandomAccessFile;
 
 import rx.Observable;
+import rx.Subscriber;
+import rx.android.schedulers.AndroidSchedulers;
+import rx.schedulers.Schedulers;
 
 public class WeatherStationActivity extends Activity {
 
@@ -155,6 +159,7 @@ public class WeatherStationActivity extends Activity {
         public void onSensorChanged(SensorEvent event) {
             mLastTemperature = event.values[0];
             Log.d(TAG, "sensor changed: " + mLastTemperature);
+
             if (mDisplayMode == DisplayMode.TEMPERATURE) {
                 updateDisplay(mLastTemperature);
             }
@@ -278,8 +283,7 @@ public class WeatherStationActivity extends Activity {
 
         // GPIO led red
         try {
-            pioService = new PeripheralManagerService();
-            mLedRed = pioService.openGpio(BoardDefaults.getLedGpioPin());
+            mLedRed = pioService.openGpio(BoardDefaults.RPI_LED_RED);
             mLedRed.setEdgeTriggerType(Gpio.EDGE_NONE);
             mLedRed.setDirection(Gpio.DIRECTION_OUT_INITIALLY_LOW);
             mLedRed.setActiveType(Gpio.ACTIVE_HIGH);
@@ -310,42 +314,19 @@ public class WeatherStationActivity extends Activity {
         // PWM speaker
         try {
             mSpeaker = new Speaker(BoardDefaults.getSpeakerPwmPin());
-            final ValueAnimator slide = ValueAnimator.ofFloat(440, 440 * 4);
-            slide.setDuration(50);
-            slide.setRepeatCount(5);
-            slide.setInterpolator(new LinearInterpolator());
-            slide.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
-                @Override
-                public void onAnimationUpdate(ValueAnimator animation) {
-                    try {
-                        float v = (float) animation.getAnimatedValue();
-                        mSpeaker.play(v);
-                    } catch (IOException e) {
-                        throw new RuntimeException("Error sliding speaker", e);
-                    }
-                }
-            });
-            slide.addListener(new AnimatorListenerAdapter() {
-                @Override
-                public void onAnimationEnd(Animator animation) {
-                    try {
-                        mSpeaker.stop();
-                    } catch (IOException e) {
-                        throw new RuntimeException("Error sliding speaker", e);
-                    }
-                }
-            });
-            Handler handler = new Handler(getMainLooper());
-            handler.postDelayed(new Runnable() {
-                @Override
-                public void run() {
-                    slide.start();
-                }
-            }, SPEAKER_READY_DELAY_MS);
+            playSound(5);
         } catch (IOException e) {
             throw new RuntimeException("Error initializing speaker", e);
         }
 
+        // create observable for CPU temperature
+        mCpuTemperatureObservable = getCpuTemperatureObservable();
+        mCpuTemperatureObservable.subscribeOn(Schedulers.io()).observeOn(AndroidSchedulers.mainThread());
+
+        mCpuTemperatureHandler = new Handler();
+        mCpuTemperatureHandler.post(mTemperatureRunnable);
+
+        //TODO check this part
         // start Cloud PubSub Publisher if cloud credentials are present.
         int credentialId = getResources().getIdentifier("credentials", "raw", getPackageName());
         if (credentialId != 0) {
@@ -357,6 +338,103 @@ public class WeatherStationActivity extends Activity {
                 Log.e(TAG, "error creating pubsub publisher", e);
             }*/
         }
+    }
+
+    /**
+     * Creates an observable which reads the CPU temperature from the file system.
+     *
+     * @return the observable
+     */
+    private Observable<Float> getCpuTemperatureObservable() {
+        return Observable.create(new Observable.OnSubscribe<Float>() {
+
+            @Override
+            public void call(Subscriber<? super Float> subscriber) {
+                RandomAccessFile reader = null;
+                try {
+                    reader = new RandomAccessFile(CPU_FILE_PATH, "r");
+                    String rawTemperature = reader.readLine();
+                    float cpuTemperature = Float.parseFloat(rawTemperature) / 1000f;
+                    // Log.i(WeatherStationActivity.TAG, "Parsed temp: " + cpuTemperature);  // for debugging
+                    subscriber.onNext(cpuTemperature);
+                } catch (IOException ex) {
+                    ex.printStackTrace();
+                    subscriber.onError(ex);
+                } finally {
+                    if(reader != null) {
+                        try {
+                            reader.close();
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                            subscriber.onError(e);
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    private Runnable mTemperatureRunnable = new Runnable() {
+
+        @Override
+        public void run() {
+            mCpuTemperatureObservable.subscribe(new Subscriber<Float>() {
+
+                @Override
+                public void onCompleted() {
+                    Log.e(TAG, "Completed.");
+                }
+
+                @Override
+                public void onError(Throwable e) {
+                    Log.e(TAG, "Error: " + e.getMessage());
+                }
+
+                @Override
+                public void onNext(Float resultCpuTemperature) {
+                    // for debugging
+                    //Log.i(MainActivity.TAG, "Temp: " + resultCpuTemperature);
+                    mCpuTemperature = resultCpuTemperature;
+                }
+            });
+
+            mHandler.postDelayed(mTemperatureRunnable, UPDATE_CPU_DELAY);
+        }
+    };
+
+    private void playSound(int repetitions) {
+        final ValueAnimator soundAnimator = ValueAnimator.ofFloat(440, 440 * 4);
+        soundAnimator.setDuration(50);
+        soundAnimator.setRepeatCount(repetitions);
+        soundAnimator.setInterpolator(new LinearInterpolator());
+        soundAnimator.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
+            @Override
+            public void onAnimationUpdate(ValueAnimator animation) {
+                try {
+                    float v = (float) animation.getAnimatedValue();
+                    mSpeaker.play(v);
+                } catch (IOException e) {
+                    throw new RuntimeException("Error sliding speaker", e);
+                }
+            }
+        });
+        soundAnimator.addListener(new AnimatorListenerAdapter() {
+            @Override
+            public void onAnimationEnd(Animator animation) {
+                try {
+                    mSpeaker.stop();
+                } catch (IOException e) {
+                    throw new RuntimeException("Error sliding speaker", e);
+                }
+            }
+        });
+        Handler handler = new Handler(getMainLooper());
+        handler.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                soundAnimator.start();
+            }
+        }, SPEAKER_READY_DELAY_MS);
     }
 
     @Override

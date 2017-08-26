@@ -72,6 +72,7 @@ public final class BoardDefaults {
             case DEVICE_JOULE:
                 return "J6_25";
             case DEVICE_RPI3:
+                //red led on A button only
                 return "BCM6";
             case DEVICE_IMX6UL_PICO:
                 return "GPIO4_IO22";
