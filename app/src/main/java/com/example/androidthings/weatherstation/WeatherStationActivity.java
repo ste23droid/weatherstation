@@ -76,8 +76,6 @@ public class WeatherStationActivity extends Activity {
     private static final float BAROMETER_RANGE_SUNNY = 1010.f;
     private static final float BAROMETER_RANGE_RAINY = 990.f;
 
-    private Gpio mLedRed;
-
     private int SPEAKER_READY_DELAY_MS = 300;
     private Speaker mSpeaker;
 
