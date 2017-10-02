@@ -20,6 +20,8 @@ import android.content.Context;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.util.Log;
@@ -37,6 +39,7 @@ import org.eclipse.paho.client.mqttv3.MqttClient;
 import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
 import org.eclipse.paho.client.mqttv3.MqttException;
 import org.eclipse.paho.client.mqttv3.MqttMessage;
+import org.eclipse.paho.client.mqttv3.MqttPersistenceException;
 
 import java.io.IOException;
 
@@ -48,9 +51,6 @@ public class MqttPublisher {
     private final Context mContext;
     private final String mAppname;
     private final String mTopic;
-
-    private Pubsub mPubsub;
-    private HttpTransport mHttpTransport;
 
     private Handler mHandler;
     private HandlerThread mHandlerThread;
@@ -64,6 +64,8 @@ public class MqttPublisher {
     private static final String MQTT_BROKER_URI = "tcp://mqtt.thingspeak.com:1883";
     private MqttAndroidClient mqttAndroidClient;
     private final MqttConnectOptions mqttConnectOptions;
+    private String mMessagePayload;
+    private static final String mPublishStatus = "MQTTPUBLISH";
 
     public MqttPublisher(Context context, String appname, String topic) throws IOException {
         mContext = context;
@@ -166,7 +168,7 @@ public class MqttPublisher {
 
         @Override
         public void run() {
-            /*onnectivityManager connectivityManager =
+            ConnectivityManager connectivityManager =
                     (ConnectivityManager) mContext.getSystemService(Context.CONNECTIVITY_SERVICE);
             NetworkInfo activeNetwork = connectivityManager.getActiveNetworkInfo();
             if (activeNetwork == null || !activeNetwork.isConnectedOrConnecting()) {
@@ -175,44 +177,20 @@ public class MqttPublisher {
             }
 
             try {
-                JSONObject messagePayload = createMessagePayload(mLastTemperature, mLastPressure);
-                if (!messagePayload.has("data")) {
-                    Log.d(TAG, "no sensor measurement to publish");
-                    return;
-                }
-                Log.d(TAG, "publishing message: " + messagePayload);
-                PubsubMessage m = new PubsubMessage();
-                m.setData(Base64.encodeToString(messagePayload.toString().getBytes(),
-                        Base64.NO_WRAP));
-                PublishRequest request = new PublishRequest();
-                request.setMessages(Collections.singletonList(m));
-                mPubsub.projects().topics().publish(mTopic, request).execute();
-            } catch (JSONException | IOException e) {
-                Log.e(TAG, "Error publishing message", e);
-            } finally {
-                //post again a publish runnable to post new values on the cloud
-                mHandler.postDelayed(mPublishRunnable, PUBLISH_INTERVAL_MS);
-            }*/
+                MqttMessage message = new MqttMessage();
+                mMessagePayload = "field1=" + mLastTemperature + "&field2=" + mLastPressure + "&status=" + mPublishStatus;
+                message.setPayload(mMessagePayload.getBytes());
+                //parameters requested by ThingSpeak APIs
+                message.setQos(0);
+                message.setRetained(false);
+                mqttAndroidClient.publish(mTopic, message);
+            } catch (MqttPersistenceException e) {
+                e.printStackTrace();
+            } catch (MqttException e) {
+                e.printStackTrace();
+            }
+            mHandler.postDelayed(mPublishRunnable, PUBLISH_INTERVAL_MS);
         }
-
-        /*private JSONObject createMessagePayload(float temperature, float pressure)
-                throws JSONException {
-            JSONObject sensorData = new JSONObject();
-            if (!Float.isNaN(temperature)) {
-                sensorData.put("temperature", String.valueOf(temperature));
-            }
-            if (!Float.isNaN(pressure)) {
-                sensorData.put("pressure", String.valueOf(pressure));
-            }
-            JSONObject messagePayload = new JSONObject();
-            messagePayload.put("deviceId", Build.DEVICE);
-            messagePayload.put("channel", "pubsub");
-            messagePayload.put("timestamp", System.currentTimeMillis());
-            if (sensorData.has("temperature") || sensorData.has("pressure")) {
-                messagePayload.put("data", sensorData);
-            }
-            return messagePayload;
-        }*/
     };
 
     private SensorEventListener mTemperatureListener = new SensorEventListener() {
