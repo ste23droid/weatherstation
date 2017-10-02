@@ -26,9 +26,6 @@ import android.os.Handler;
 import android.os.HandlerThread;
 import android.util.Log;
 
-import com.google.api.client.http.HttpTransport;
-import com.google.api.services.pubsub.Pubsub;
-
 import org.eclipse.paho.android.service.MqttAndroidClient;
 import org.eclipse.paho.client.mqttv3.DisconnectedBufferOptions;
 import org.eclipse.paho.client.mqttv3.IMqttActionListener;
@@ -59,7 +56,7 @@ public class MqttPublisher {
     private float mLastPressure = Float.NaN;
 
     //thingSpeak supports publishing every 15 seconds
-    private static final long PUBLISH_INTERVAL_MS = 15000;
+    private static final long PUBLISH_INTERVAL_MS = 20000;
 
     private static final String MQTT_BROKER_URI = "tcp://mqtt.thingspeak.com:1883";
     private MqttAndroidClient mqttAndroidClient;
@@ -67,7 +64,7 @@ public class MqttPublisher {
     private String mMessagePayload;
     private static final String mPublishStatus = "MQTTPUBLISH";
 
-    public MqttPublisher(Context context, String appname, String topic) throws IOException {
+    public MqttPublisher(Context context, String appname) throws IOException {
         mContext = context;
         mAppname = appname;
         mTopic = "channels/339843/publish/JHHJ8PHE20Y99H8H";
@@ -222,4 +219,5 @@ public class MqttPublisher {
     public SensorEventListener getPressureListener() {
         return mPressureListener;
     }
+
 }

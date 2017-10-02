@@ -264,17 +264,13 @@ public class WeatherStationActivity extends Activity {
         mCpuTemperatureHandler = new Handler(getMainLooper());
         mCpuTemperatureHandler.post(mTemperatureRunnable);
 
-        // start Cloud PubSub Publisher if cloud credentials are present.
-        int credentialId = getResources().getIdentifier("credentials", "raw", getPackageName());
-        if (credentialId != 0) {
-            /*try {
-                mMqttPublisher = new MqttPublisher(this, "weatherstation",
-                        BuildConfig.PROJECT_ID, BuildConfig.PUBSUB_TOPIC, credentialId);
+        // start MQTT Publisher
+            try {
+                mMqttPublisher = new MqttPublisher(this, "weatherstation");
                 mMqttPublisher.start();
             } catch (IOException e) {
-                Log.e(TAG, "error creating pubsub publisher", e);
-            }*/
-        }
+                Log.e(TAG, "Error creating MQTT publisher", e);
+            }
     }
 
     // Callback used when we register the BMP280 sensor driver with the system's SensorManager.
