@@ -29,8 +29,8 @@ android {
     }
     buildTypes {
         debug {
-            buildConfigField "String", "THINGSPEAK_CHANNEL_ID", '"339843"'
-            buildConfigField "String", "THINGSPEAK_WRITE_API_KEY", '"JHHJ8PHE20Y99H8H"'
+            buildConfigField "String", "THINGSPEAK_CHANNEL_ID", '"YOUR_CHANNEL_ID"'
+            buildConfigField "String", "THINGSPEAK_WRITE_API_KEY", '"YOUR_WRITE_API_KEY"'
         }
         release {
             initWith(buildTypes.debug)
