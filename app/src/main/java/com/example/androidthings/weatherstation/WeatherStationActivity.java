@@ -264,7 +264,6 @@ public class WeatherStationActivity extends Activity {
         mCpuTemperatureHandler = new Handler(getMainLooper());
         mCpuTemperatureHandler.post(mTemperatureRunnable);
 
-        //TODO check this part
         // start Cloud PubSub Publisher if cloud credentials are present.
         int credentialId = getResources().getIdentifier("credentials", "raw", getPackageName());
         if (credentialId != 0) {
@@ -452,15 +451,27 @@ public class WeatherStationActivity extends Activity {
 
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
-        if (keyCode == KeyEvent.KEYCODE_A) {
-            mDisplayMode = DisplayMode.PRESSURE;
-            updateDisplayTemperature(mLastPressure);
-            try {
-                mLedRed.setValue(true);
-            } catch (IOException e) {
-                Log.e(TAG, "error updating LED", e);
+        if(keyCode == KeyEvent.KEYCODE_A) {
+            if(mDisplayMode != DisplayMode.TEMPERATURE) {
+                mDisplayMode = DisplayMode.TEMPERATURE;
+                updateDisplayTemperature(mLastTemperature);
+                try {
+                    mLedRed.setValue(true);
+                } catch (IOException e) {
+                    Log.e(TAG, "error updating LED", e);
+                }
+                return true;
             }
-            return true;
+        } else if(keyCode == KeyEvent.KEYCODE_B) {
+            if(mDisplayMode != DisplayMode.PRESSURE) {
+                mDisplayMode = DisplayMode.PRESSURE;
+                updateDisplayPressure(mLastPressure);
+                try {
+                    mLedBlue.setValue(true);
+                } catch (IOException e) {
+                    Log.e(TAG, "error updating LED", e);
+                }
+            }
         }
         return super.onKeyUp(keyCode, event);
     }
@@ -468,87 +479,20 @@ public class WeatherStationActivity extends Activity {
     @Override
     public boolean onKeyUp(int keyCode, KeyEvent event) {
         if (keyCode == KeyEvent.KEYCODE_A) {
-            mDisplayMode = DisplayMode.TEMPERATURE;
-            updateDisplayTemperature(mLastTemperature);
             try {
                 mLedRed.setValue(false);
             } catch (IOException e) {
                 Log.e(TAG, "error updating LED", e);
             }
             return true;
+        } else if(keyCode == KeyEvent.KEYCODE_B) {
+            try {
+                mLedBlue.setValue(false);
+            } catch (IOException e) {
+                Log.e(TAG, "error updating LED", e);
+            }
         }
         return super.onKeyUp(keyCode, event);
-    }
-
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-
-        // Clean up sensor registrations
-        mSensorManager.unregisterListener(mTemperatureListener);
-        mSensorManager.unregisterListener(mPressureListener);
-        mSensorManager.unregisterDynamicSensorCallback(mDynamicSensorCallback);
-
-        // Clean up peripheral.
-        if (mEnvironmentalSensorDriver != null) {
-            try {
-                mEnvironmentalSensorDriver.close();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-            mEnvironmentalSensorDriver = null;
-        }
-        if (mButtonInputDriverA != null) {
-            try {
-                mButtonInputDriverA.close();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-            mButtonInputDriverA = null;
-        }
-
-        if (mDisplay != null) {
-            try {
-                mDisplay.clear();
-                mDisplay.setEnabled(false);
-                mDisplay.close();
-            } catch (IOException e) {
-                Log.e(TAG, "Error disabling display", e);
-            } finally {
-                mDisplay = null;
-            }
-        }
-
-        if (mLedstrip != null) {
-            try {
-                mLedstrip.setBrightness(0);
-                mLedstrip.write(new int[7]);
-                mLedstrip.close();
-            } catch (IOException e) {
-                Log.e(TAG, "Error disabling ledstrip", e);
-            } finally {
-                mLedstrip = null;
-            }
-        }
-
-        if (mLedRed != null) {
-            try {
-                mLedRed.setValue(false);
-                mLedRed.close();
-            } catch (IOException e) {
-                Log.e(TAG, "Error disabling led", e);
-            } finally {
-                mLedRed = null;
-            }
-        }
-
-        // clean up Cloud PubSub publisher.
-        if (mMqttPublisher != null) {
-            mSensorManager.unregisterListener(mMqttPublisher.getTemperatureListener());
-            mSensorManager.unregisterListener(mMqttPublisher.getPressureListener());
-            mMqttPublisher.close();
-            mMqttPublisher = null;
-        }
     }
 
     private void updateDisplayTemperature(float temperature) {
@@ -600,4 +544,117 @@ public class WeatherStationActivity extends Activity {
             Log.e(TAG, "Error setting ledstrip", e);
         }
     }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+
+        // Clean up sensor registrations
+        mSensorManager.unregisterListener(mTemperatureListener);
+        mSensorManager.unregisterListener(mPressureListener);
+        mSensorManager.unregisterDynamicSensorCallback(mDynamicSensorCallback);
+
+        // Clean up peripheral.
+        if (mEnvironmentalSensorDriver != null) {
+            try {
+                mEnvironmentalSensorDriver.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            mEnvironmentalSensorDriver = null;
+        }
+
+        if (mButtonInputDriverA != null) {
+            try {
+                mButtonInputDriverA.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            mButtonInputDriverA = null;
+        }
+
+        if (mButtonInputDriverB != null) {
+            try {
+                mButtonInputDriverB.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            mButtonInputDriverB = null;
+        }
+
+        if (mButtonInputDriverC != null) {
+            try {
+                mButtonInputDriverC.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            mButtonInputDriverC = null;
+        }
+
+        if (mDisplay != null) {
+            try {
+                mDisplay.clear();
+                mDisplay.setEnabled(false);
+                mDisplay.close();
+            } catch (IOException e) {
+                Log.e(TAG, "Error disabling display", e);
+            } finally {
+                mDisplay = null;
+            }
+        }
+
+        if (mLedstrip != null) {
+            try {
+                mLedstrip.setBrightness(0);
+                mLedstrip.write(new int[7]);
+                mLedstrip.close();
+            } catch (IOException e) {
+                Log.e(TAG, "Error disabling ledstrip", e);
+            } finally {
+                mLedstrip = null;
+            }
+        }
+
+        if (mLedRed != null) {
+            try {
+                mLedRed.setValue(false);
+                mLedRed.close();
+            } catch (IOException e) {
+                Log.e(TAG, "Error disabling led", e);
+            } finally {
+                mLedRed = null;
+            }
+        }
+
+        if (mLedGreen != null) {
+            try {
+                mLedGreen.setValue(false);
+                mLedGreen.close();
+            } catch (IOException e) {
+                Log.e(TAG, "Error disabling led", e);
+            } finally {
+                mLedGreen = null;
+            }
+        }
+
+        if (mLedBlue != null) {
+            try {
+                mLedBlue.setValue(false);
+                mLedBlue.close();
+            } catch (IOException e) {
+                Log.e(TAG, "Error disabling led", e);
+            } finally {
+                mLedBlue = null;
+            }
+        }
+
+        // clean up MQTT PubSub publisher.
+        if (mMqttPublisher != null) {
+            mSensorManager.unregisterListener(mMqttPublisher.getTemperatureListener());
+            mSensorManager.unregisterListener(mMqttPublisher.getPressureListener());
+            mMqttPublisher.close();
+            mMqttPublisher = null;
+        }
+    }
+
 }
