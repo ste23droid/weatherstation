@@ -51,6 +51,7 @@ public final class BoardDefaults {
             case DEVICE_JOULE:
                 return "J7_71";
             case DEVICE_RPI3:
+                //button A only
                 return "BCM21";
             case DEVICE_IMX6UL_PICO:
                 return "GPIO2_IO03";

@@ -39,6 +39,12 @@ android {
     }
 }
 
+repositories {
+    maven {
+        url "https://repo.eclipse.org/content/repositories/paho-releases/"
+    }
+}
+
 dependencies {
     testCompile 'junit:junit:4.12'
 
@@ -46,7 +52,8 @@ dependencies {
 
     compile 'com.google.android.things.contrib:driver-rainbowhat:0.5'
     compile 'io.reactivex:rxandroid:1.2.1'
-    compile 'org.eclipse.paho:org.eclipse.paho.client.mqttv3:1.0.2'
+    compile 'org.eclipse.paho:org.eclipse.paho.client.mqttv3:1.1.1'
+    compile 'org.eclipse.paho:org.eclipse.paho.android.service:1.1.1'
 
     compile('com.google.api-client:google-api-client-android:1.22.0') {
         exclude group: 'org.apache.httpcomponents'

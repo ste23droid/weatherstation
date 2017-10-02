@@ -59,6 +59,7 @@ public class WeatherStationActivity extends Activity {
         PRESSURE
     }
 
+    // https://developer.android.com/reference/android/hardware/SensorManager.html
     private SensorManager mSensorManager;
 
     private ButtonInputDriver mButtonInputDriverA;
@@ -83,22 +84,21 @@ public class WeatherStationActivity extends Activity {
     private int SPEAKER_READY_DELAY_MS = 300;
     private Speaker mSpeaker;
 
-    private PubsubPublisher mPubsubPublisher;
+    private MqttPublisher mMqttPublisher;
     private ImageView mImageView;
 
     private static final int MSG_UPDATE_BAROMETER_UI = 1;
     public static final String CPU_FILE_PATH = "/sys/class/thermal/thermal_zone0/temp";
     private static final float HEATING_COEFFICIENT = 0.55f;
-    private static final long UPDATE_CPU_DELAY = 300;
+    private static final long UPDATE_CPU_DELAY = 50;
 
     private Float mCpuTemperature = 0f;
     private Observable<Float> mCpuTemperatureObservable;
+
     private Handler mCpuTemperatureHandler;
+    private Handler mSoundHandler;
 
-    private float mLastTemperature;
-    private float mLastPressure;
-
-    private final Handler mHandler = new Handler() {
+    private final Handler mUpdateUIHandler = new Handler() {
         private int mBarometerImage = -1;
 
         @Override
@@ -122,74 +122,8 @@ public class WeatherStationActivity extends Activity {
         }
     };
 
-    // Callback used when we register the BMP280 sensor driver with the system's SensorManager.
-    private SensorManager.DynamicSensorCallback mDynamicSensorCallback
-            = new SensorManager.DynamicSensorCallback() {
-        @Override
-        public void onDynamicSensorConnected(Sensor sensor) {
-            if (sensor.getType() == Sensor.TYPE_AMBIENT_TEMPERATURE) {
-                // Our sensor is connected. Start receiving temperature data.
-                mSensorManager.registerListener(mTemperatureListener, sensor,
-                        SensorManager.SENSOR_DELAY_NORMAL);
-                if (mPubsubPublisher != null) {
-                    mSensorManager.registerListener(mPubsubPublisher.getTemperatureListener(), sensor,
-                            SensorManager.SENSOR_DELAY_NORMAL);
-                }
-            } else if (sensor.getType() == Sensor.TYPE_PRESSURE) {
-                // Our sensor is connected. Start receiving pressure data.
-                mSensorManager.registerListener(mPressureListener, sensor,
-                        SensorManager.SENSOR_DELAY_NORMAL);
-                if (mPubsubPublisher != null) {
-                    mSensorManager.registerListener(mPubsubPublisher.getPressureListener(), sensor,
-                            SensorManager.SENSOR_DELAY_NORMAL);
-                }
-            }
-        }
-
-        @Override
-        public void onDynamicSensorDisconnected(Sensor sensor) {
-            super.onDynamicSensorDisconnected(sensor);
-        }
-    };
-
-    // Callback when SensorManager delivers temperature data.
-    private SensorEventListener mTemperatureListener = new SensorEventListener() {
-
-        @Override
-        public void onSensorChanged(SensorEvent event) {
-            mLastTemperature = event.values[0];
-            Log.d(TAG, "sensor changed: " + mLastTemperature);
-
-            if (mDisplayMode == DisplayMode.TEMPERATURE) {
-                updateDisplay(mLastTemperature);
-            }
-        }
-
-        @Override
-        public void onAccuracyChanged(Sensor sensor, int accuracy) {
-            Log.d(TAG, "accuracy changed: " + accuracy);
-        }
-    };
-
-    // Callback when SensorManager delivers pressure data.
-    private SensorEventListener mPressureListener = new SensorEventListener() {
-
-        @Override
-        public void onSensorChanged(SensorEvent event) {
-            mLastPressure = event.values[0];
-            Log.d(TAG, "sensor changed: " + mLastPressure);
-            if (mDisplayMode == DisplayMode.PRESSURE) {
-                updateDisplay(mLastPressure);
-                //updateDisplayBarometer(mLastPressure);
-            }
-            updateBarometer(mLastPressure);
-        }
-
-        @Override
-        public void onAccuracyChanged(Sensor sensor, int accuracy) {
-            Log.d(TAG, "accuracy changed: " + accuracy);
-        }
-    };
+    private float mLastTemperature;
+    private float mLastPressure;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -246,7 +180,9 @@ public class WeatherStationActivity extends Activity {
         // different default addresses, so everything just works.
         try {
             mEnvironmentalSensorDriver = new Bmx280SensorDriver(BoardDefaults.getI2cBus());
+            //attach the sensor update callbacks to the SensorManager
             mSensorManager.registerDynamicSensorCallback(mDynamicSensorCallback);
+            //start to get temperature and pressure data
             mEnvironmentalSensorDriver.registerTemperatureSensor();
             mEnvironmentalSensorDriver.registerPressureSensor();
             Log.d(TAG, "Initialized I2C BMP280");
@@ -314,16 +250,17 @@ public class WeatherStationActivity extends Activity {
         // PWM speaker
         try {
             mSpeaker = new Speaker(BoardDefaults.getSpeakerPwmPin());
+            //create a Handler to post board startup sounds on main thread
             playSound(5);
         } catch (IOException e) {
             throw new RuntimeException("Error initializing speaker", e);
         }
 
-        // create observable for CPU temperature
         mCpuTemperatureObservable = getCpuTemperatureObservable();
         mCpuTemperatureObservable.subscribeOn(Schedulers.io()).observeOn(AndroidSchedulers.mainThread());
 
-        mCpuTemperatureHandler = new Handler();
+        //create a handler for main thread to post precise information on CPU temperature from file system
+        mCpuTemperatureHandler = new Handler(getMainLooper());
         mCpuTemperatureHandler.post(mTemperatureRunnable);
 
         //TODO check this part
@@ -331,14 +268,82 @@ public class WeatherStationActivity extends Activity {
         int credentialId = getResources().getIdentifier("credentials", "raw", getPackageName());
         if (credentialId != 0) {
             /*try {
-                mPubsubPublisher = new PubsubPublisher(this, "weatherstation",
+                mMqttPublisher = new MqttPublisher(this, "weatherstation",
                         BuildConfig.PROJECT_ID, BuildConfig.PUBSUB_TOPIC, credentialId);
-                mPubsubPublisher.start();
+                mMqttPublisher.start();
             } catch (IOException e) {
                 Log.e(TAG, "error creating pubsub publisher", e);
             }*/
         }
     }
+
+    // Callback used when we register the BMP280 sensor driver with the system's SensorManager.
+    // register 4 listeners: 2 to update the board informations, 2 to update information for the cloud
+    private SensorManager.DynamicSensorCallback mDynamicSensorCallback = new SensorManager.DynamicSensorCallback() {
+
+        @Override
+        public void onDynamicSensorConnected(Sensor sensor) {
+            if (sensor.getType() == Sensor.TYPE_AMBIENT_TEMPERATURE) {
+                // Our sensor is connected. Start receiving temperature data.
+                mSensorManager.registerListener(mTemperatureListener, sensor, SensorManager.SENSOR_DELAY_NORMAL);
+                if (mMqttPublisher != null) {
+                    //register a temperature listener to publish data on cloud when new temperature available
+                    mSensorManager.registerListener(mMqttPublisher.getTemperatureListener(), sensor, SensorManager.SENSOR_DELAY_NORMAL);
+                }
+            } else if (sensor.getType() == Sensor.TYPE_PRESSURE) {
+                // Our sensor is connected. Start receiving pressure data.
+                mSensorManager.registerListener(mPressureListener, sensor, SensorManager.SENSOR_DELAY_NORMAL);
+                if (mMqttPublisher != null) {
+                    //register a pressure listener to publish data on cloud when new pressure available
+                    mSensorManager.registerListener(mMqttPublisher.getPressureListener(), sensor, SensorManager.SENSOR_DELAY_NORMAL);
+                }
+            }
+        }
+
+        @Override
+        public void onDynamicSensorDisconnected(Sensor sensor) {
+            super.onDynamicSensorDisconnected(sensor);
+        }
+    };
+
+    // Callback when SensorManager delivers temperature data.
+    private SensorEventListener mTemperatureListener = new SensorEventListener() {
+
+        @Override
+        public void onSensorChanged(SensorEvent event) {
+            mLastTemperature = event.values[0];
+            Log.d(TAG, "sensor changed: " + mLastTemperature);
+
+            if (mDisplayMode == DisplayMode.TEMPERATURE) {
+                updateDisplay(mLastTemperature);
+            }
+        }
+
+        @Override
+        public void onAccuracyChanged(Sensor sensor, int accuracy) {
+            Log.d(TAG, "accuracy changed: " + accuracy);
+        }
+    };
+
+    // Callback when SensorManager delivers pressure data.
+    private SensorEventListener mPressureListener = new SensorEventListener() {
+
+        @Override
+        public void onSensorChanged(SensorEvent event) {
+            mLastPressure = event.values[0];
+            Log.d(TAG, "sensor changed: " + mLastPressure);
+
+            if (mDisplayMode == DisplayMode.PRESSURE) {
+                updateDisplay(mLastPressure);
+            }
+            updateBarometer(mLastPressure);
+        }
+
+        @Override
+        public void onAccuracyChanged(Sensor sensor, int accuracy) {
+            Log.d(TAG, "accuracy changed: " + accuracy);
+        }
+    };
 
     /**
      * Creates an observable which reads the CPU temperature from the file system.
@@ -354,8 +359,9 @@ public class WeatherStationActivity extends Activity {
                 try {
                     reader = new RandomAccessFile(CPU_FILE_PATH, "r");
                     String rawTemperature = reader.readLine();
+                    //temperature on the file is in milli celsius, we want celsius
                     float cpuTemperature = Float.parseFloat(rawTemperature) / 1000f;
-                    // Log.i(WeatherStationActivity.TAG, "Parsed temp: " + cpuTemperature);  // for debugging
+                    Log.i(WeatherStationActivity.TAG, "Parsed temp: " + cpuTemperature);
                     subscriber.onNext(cpuTemperature);
                 } catch (IOException ex) {
                     ex.printStackTrace();
@@ -378,6 +384,7 @@ public class WeatherStationActivity extends Activity {
 
         @Override
         public void run() {
+            //create a subscriber and subscribe to the CPU temperature observable
             mCpuTemperatureObservable.subscribe(new Subscriber<Float>() {
 
                 @Override
@@ -392,13 +399,13 @@ public class WeatherStationActivity extends Activity {
 
                 @Override
                 public void onNext(Float resultCpuTemperature) {
-                    // for debugging
-                    //Log.i(MainActivity.TAG, "Temp: " + resultCpuTemperature);
+                    //save the CPU temperature read from file system
                     mCpuTemperature = resultCpuTemperature;
                 }
             });
 
-            mHandler.postDelayed(mTemperatureRunnable, UPDATE_CPU_DELAY);
+            //post again a message in the main thread message queue, to update again the temperature in future
+            mCpuTemperatureHandler.postDelayed(mTemperatureRunnable, UPDATE_CPU_DELAY);
         }
     };
 
@@ -408,6 +415,7 @@ public class WeatherStationActivity extends Activity {
         soundAnimator.setRepeatCount(repetitions);
         soundAnimator.setInterpolator(new LinearInterpolator());
         soundAnimator.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
+
             @Override
             public void onAnimationUpdate(ValueAnimator animation) {
                 try {
@@ -419,6 +427,7 @@ public class WeatherStationActivity extends Activity {
             }
         });
         soundAnimator.addListener(new AnimatorListenerAdapter() {
+
             @Override
             public void onAnimationEnd(Animator animation) {
                 try {
@@ -428,8 +437,11 @@ public class WeatherStationActivity extends Activity {
                 }
             }
         });
-        Handler handler = new Handler(getMainLooper());
-        handler.postDelayed(new Runnable() {
+
+        //create a Handler to post sound messages in the Message queue of the main thread looper
+        mSoundHandler = new Handler(getMainLooper());
+        mSoundHandler.postDelayed(new Runnable() {
+
             @Override
             public void run() {
                 soundAnimator.start();
@@ -466,7 +478,6 @@ public class WeatherStationActivity extends Activity {
         }
         return super.onKeyUp(keyCode, event);
     }
-
 
     @Override
     protected void onDestroy() {
@@ -509,8 +520,8 @@ public class WeatherStationActivity extends Activity {
 
         if (mLedstrip != null) {
             try {
-                mLedstrip.write(new int[7]);
                 mLedstrip.setBrightness(0);
+                mLedstrip.write(new int[7]);
                 mLedstrip.close();
             } catch (IOException e) {
                 Log.e(TAG, "Error disabling ledstrip", e);
@@ -531,11 +542,11 @@ public class WeatherStationActivity extends Activity {
         }
 
         // clean up Cloud PubSub publisher.
-        if (mPubsubPublisher != null) {
-            mSensorManager.unregisterListener(mPubsubPublisher.getTemperatureListener());
-            mSensorManager.unregisterListener(mPubsubPublisher.getPressureListener());
-            mPubsubPublisher.close();
-            mPubsubPublisher = null;
+        if (mMqttPublisher != null) {
+            mSensorManager.unregisterListener(mMqttPublisher.getTemperatureListener());
+            mSensorManager.unregisterListener(mMqttPublisher.getPressureListener());
+            mMqttPublisher.close();
+            mMqttPublisher = null;
         }
     }
 
@@ -550,10 +561,11 @@ public class WeatherStationActivity extends Activity {
     }
 
     private void updateBarometer(float pressure) {
-        // Update UI.
-        if (!mHandler.hasMessages(MSG_UPDATE_BAROMETER_UI)) {
-            mHandler.sendEmptyMessageDelayed(MSG_UPDATE_BAROMETER_UI, 100);
+        // Update UI
+        if (!mUpdateUIHandler.hasMessages(MSG_UPDATE_BAROMETER_UI)) {
+            mUpdateUIHandler.sendEmptyMessageDelayed(MSG_UPDATE_BAROMETER_UI, 100);
         }
+
         // Update led strip.
         if (mLedstrip == null) {
             return;

@@ -46,8 +46,8 @@ import java.io.InputStream;
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 
-class PubsubPublisher {
-    private static final String TAG = PubsubPublisher.class.getSimpleName();
+class MqttPublisher {
+    private static final String TAG = MqttPublisher.class.getSimpleName();
 
     private final Context mContext;
     private final String mAppname;
@@ -64,8 +64,8 @@ class PubsubPublisher {
 
     private static final long PUBLISH_INTERVAL_MS = TimeUnit.MINUTES.toMillis(1);
 
-    PubsubPublisher(Context context, String appname, String project, String topic,
-                    int credentialResourceId) throws IOException {
+    MqttPublisher(Context context, String appname, String project, String topic,
+                  int credentialResourceId) throws IOException {
         mContext = context;
         mAppname = appname;
         mTopic = "projects/" + project + "/topics/" + topic;
@@ -183,6 +183,7 @@ class PubsubPublisher {
     };
 
     private SensorEventListener mTemperatureListener = new SensorEventListener() {
+
         @Override
         public void onSensorChanged(SensorEvent event) {
             mLastTemperature = event.values[0];
@@ -193,6 +194,7 @@ class PubsubPublisher {
     };
 
     private SensorEventListener mPressureListener = new SensorEventListener() {
+
         @Override
         public void onSensorChanged(SensorEvent event) {
             mLastPressure = event.values[0];
