@@ -15,6 +15,7 @@ buildConfigField "String", "THINGSPEAK_WRITE_API_KEY", '"YOUR_WRITE_API_KEY"'
 ## Pre-requisites
 - Raspberry Pi 3
 - Android Studio 2.2+
+- [ThingSpeak account and channel](https://thingspeak.com/)
 - [Rainbow Hat for Android Things](https://shop.pimoroni.com/products/rainbow-hat-for-android-things) or the following individual components:
     - 1 [bmp280 temperature sensor](https://www.adafruit.com/product/2651)
     - 1 [segment display with I2C backpack](https://www.adafruit.com/product/1270)
@@ -24,7 +25,6 @@ buildConfigField "String", "THINGSPEAK_WRITE_API_KEY", '"YOUR_WRITE_API_KEY"'
     - 1 breadboard
     - (optional) 1 [APA102 compatible RGB Led strip](https://www.adafruit.com/product/2241)
     - (optional) 1 [Piezo Buzzer](https://www.adafruit.com/products/160)
-    - (optional) [ThingSpeak account and channel](https://thingspeak.com/)
 
 ## Schematics
-If you have the Raspberry Pi [Rainbow Hat for Android Things](https://shop.pimoroni.com/products/rainbow-hat-for-android-things), just plug it onto your Raspberry Pi 3. Otherwise here are the [schematics](https://github.com/androidthings/weatherstation)
+If you have the Raspberry Pi [Rainbow Hat for Android Things](https://shop.pimoroni.com/products/rainbow-hat-for-android-things), just plug it onto your Raspberry Pi 3. Otherwise here are the [schematics](https://github.com/androidthings/weatherstation).
