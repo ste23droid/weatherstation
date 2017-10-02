@@ -72,6 +72,9 @@ public class MqttPublisher {
     private final String clientId = "WeatherStation";
     private MqttAndroidClient mqttAndroidClient;
 
+
+
+
     public MqttPublisher(Context context, String appname, String topic) throws IOException {
         mContext = context;
         mAppname = appname;
