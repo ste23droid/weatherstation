@@ -58,7 +58,7 @@ public class MqttPublisher {
     //thingSpeak supports publishing every 15 seconds
     private static final long PUBLISH_INTERVAL_MS = 20000;
 
-    private static final String MQTT_BROKER_URI = "tcp://mqtt.thingspeak.com:1883";
+    private static final String MQTT_BROKER_URI = "ssl://mqtt.thingspeak.com:8883";
     private MqttAndroidClient mqttAndroidClient;
     private final MqttConnectOptions mqttConnectOptions;
     private String mMessagePayload;
@@ -67,7 +67,7 @@ public class MqttPublisher {
     public MqttPublisher(Context context, String appname) throws IOException {
         mContext = context;
         mAppname = appname;
-        mTopic = "channels/339843/publish/JHHJ8PHE20Y99H8H";
+        mTopic = "channels/"+ BuildConfig.THINGSPEAK_CHANNEL_ID + "/publish/" + BuildConfig.THINGSPEAK_WRITE_API_KEY;
 
         //create a new thread and related Looper
         mHandlerThread = new HandlerThread("MQTTPublisherThread");
@@ -117,6 +117,7 @@ public class MqttPublisher {
                             disconnectedBufferOptions.setPersistBuffer(false);
                             disconnectedBufferOptions.setDeleteOldestMessages(false);
                             mqttAndroidClient.setBufferOpts(disconnectedBufferOptions);
+                            mHandler.post(mPublishRunnable);
                         }
 
                         @Override
@@ -124,23 +125,11 @@ public class MqttPublisher {
                             Log.d(TAG, "Failed to connect to: " + MQTT_BROKER_URI);
                         }
                     });
-
-
                 } catch (MqttException ex){
                     Log.d(TAG, "Connection failed " + ex.toString());
                 }
             }
         });
-    }
-
-    public void start() {
-        if(mqttAndroidClient.isConnected()) {
-            mHandler.post(mPublishRunnable);
-        }
-    }
-
-    public void stop() {
-        mHandler.removeCallbacks(mPublishRunnable);
     }
 
     public void close() {
@@ -180,7 +169,11 @@ public class MqttPublisher {
                 //parameters requested by ThingSpeak APIs
                 message.setQos(0);
                 message.setRetained(false);
-                mqttAndroidClient.publish(mTopic, message);
+                if(mqttAndroidClient != null) {
+                    mqttAndroidClient.publish(mTopic, message);
+                    Log.d(TAG, "Published new data");
+                }
+
             } catch (MqttPersistenceException e) {
                 e.printStackTrace();
             } catch (MqttException e) {

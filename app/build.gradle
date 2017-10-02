@@ -29,6 +29,8 @@ android {
     }
     buildTypes {
         debug {
+            buildConfigField "String", "THINGSPEAK_CHANNEL_ID", '"339843"'
+            buildConfigField "String", "THINGSPEAK_WRITE_API_KEY", '"JHHJ8PHE20Y99H8H"'
         }
         release {
             initWith(buildTypes.debug)
@@ -52,4 +54,5 @@ dependencies {
     compile 'io.reactivex:rxandroid:1.2.1'
     compile 'org.eclipse.paho:org.eclipse.paho.client.mqttv3:1.1.1'
     compile 'org.eclipse.paho:org.eclipse.paho.android.service:1.1.1'
+    compile 'com.android.support:support-v4:25.3.1'
 }

@@ -267,7 +267,6 @@ public class WeatherStationActivity extends Activity {
         // start MQTT Publisher
             try {
                 mMqttPublisher = new MqttPublisher(this, "weatherstation");
-                mMqttPublisher.start();
             } catch (IOException e) {
                 Log.e(TAG, "Error creating MQTT publisher", e);
             }
@@ -463,7 +462,7 @@ public class WeatherStationActivity extends Activity {
                 mDisplayMode = DisplayMode.PRESSURE;
                 updateDisplayPressure(mLastPressure);
                 try {
-                    mLedBlue.setValue(true);
+                    mLedGreen.setValue(true);
                 } catch (IOException e) {
                     Log.e(TAG, "error updating LED", e);
                 }
@@ -483,7 +482,7 @@ public class WeatherStationActivity extends Activity {
             return true;
         } else if(keyCode == KeyEvent.KEYCODE_B) {
             try {
-                mLedBlue.setValue(false);
+                mLedGreen.setValue(false);
             } catch (IOException e) {
                 Log.e(TAG, "error updating LED", e);
             }
