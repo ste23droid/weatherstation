@@ -20,35 +20,28 @@ import android.content.Context;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
-import android.net.ConnectivityManager;
-import android.net.NetworkInfo;
-import android.os.Build;
 import android.os.Handler;
 import android.os.HandlerThread;
-import android.util.Base64;
 import android.util.Log;
 
-import com.google.api.client.extensions.android.http.AndroidHttp;
-import com.google.api.client.googleapis.auth.oauth2.GoogleCredential;
 import com.google.api.client.http.HttpTransport;
-import com.google.api.client.json.JsonFactory;
-import com.google.api.client.json.jackson2.JacksonFactory;
 import com.google.api.services.pubsub.Pubsub;
-import com.google.api.services.pubsub.PubsubScopes;
-import com.google.api.services.pubsub.model.PublishRequest;
-import com.google.api.services.pubsub.model.PubsubMessage;
 
 import org.eclipse.paho.android.service.MqttAndroidClient;
+import org.eclipse.paho.client.mqttv3.DisconnectedBufferOptions;
+import org.eclipse.paho.client.mqttv3.IMqttActionListener;
 import org.eclipse.paho.client.mqttv3.IMqttDeliveryToken;
+import org.eclipse.paho.client.mqttv3.IMqttToken;
 import org.eclipse.paho.client.mqttv3.MqttCallbackExtended;
+import org.eclipse.paho.client.mqttv3.MqttClient;
+import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
+import org.eclipse.paho.client.mqttv3.MqttException;
 import org.eclipse.paho.client.mqttv3.MqttMessage;
-import org.json.JSONException;
-import org.json.JSONObject;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.util.Collections;
 
+
+//Adapted from https://github.com/eclipse/paho.mqtt.android/blob/master/paho.mqtt.android.example/src/main/java/paho/mqtt/java/example/PahoExampleActivity.java
 public class MqttPublisher {
     private static final String TAG = MqttPublisher.class.getSimpleName();
 
@@ -69,11 +62,8 @@ public class MqttPublisher {
     private static final long PUBLISH_INTERVAL_MS = 15000;
 
     private static final String MQTT_BROKER_URI = "tcp://mqtt.thingspeak.com:1883";
-    private final String clientId = "WeatherStation";
     private MqttAndroidClient mqttAndroidClient;
-
-
-
+    private final MqttConnectOptions mqttConnectOptions;
 
     public MqttPublisher(Context context, String appname, String topic) throws IOException {
         mContext = context;
@@ -85,64 +75,69 @@ public class MqttPublisher {
         mHandlerThread.start();
         mHandler = new Handler(mHandlerThread.getLooper());
 
-        mqttAndroidClient = new MqttAndroidClient(context, MQTT_BROKER_URI, clientId);
+        mqttAndroidClient = new MqttAndroidClient(context, MQTT_BROKER_URI, MqttClient.generateClientId());
         mqttAndroidClient.setCallback(new MqttCallbackExtended() {
 
             @Override
             public void connectComplete(boolean reconnect, String serverURI) {
-
-                if (reconnect) {
-                    addToHistory("Reconnected to : " + serverURI);
-                    // Because Clean Session is true, we need to re-subscribe
-                    subscribeToTopic();
-                } else {
-                    addToHistory("Connected to: " + serverURI);
-                }
+                Log.d(TAG, "Connected to: " + MQTT_BROKER_URI);
             }
 
             @Override
             public void connectionLost(Throwable cause) {
-                addToHistory("The Connection was lost.");
+                Log.d(TAG, "Disconnected from: " + MQTT_BROKER_URI);
             }
 
             @Override
             public void messageArrived(String topic, MqttMessage message) throws Exception {
-                addToHistory("Incoming message: " + new String(message.getPayload()));
+                Log.d(TAG, "Incoming message: " + new String(message.getPayload()));
             }
 
             @Override
             public void deliveryComplete(IMqttDeliveryToken token) {
-
+                Log.d(TAG, "Delivery Complete");
             }
         });
 
-        /*InputStream jsonCredentials = mContext.getResources().openRawResource(credentialResourceId);
-        final GoogleCredential credentials;
-        try {
-            credentials = GoogleCredential.fromStream(jsonCredentials).createScoped(
-                    Collections.singleton(PubsubScopes.PUBSUB));
-        } finally {
-            try {
-                jsonCredentials.close();
-            } catch (IOException e) {
-                Log.e(TAG, "Error closing input stream", e);
-            }
-        }
+        mqttConnectOptions = new MqttConnectOptions();
+        mqttConnectOptions.setAutomaticReconnect(true);
+        mqttConnectOptions.setCleanSession(true);
+
         mHandler.post(new Runnable() {
 
             @Override
             public void run() {
-                mHttpTransport = AndroidHttp.newCompatibleTransport();
-                JsonFactory jsonFactory = JacksonFactory.getDefaultInstance();
-                mPubsub = new Pubsub.Builder(mHttpTransport, jsonFactory, credentials).setApplicationName(mAppname).build();
+                try {
+                    mqttAndroidClient.connect(mqttConnectOptions, null, new IMqttActionListener() {
+
+                        @Override
+                        public void onSuccess(IMqttToken asyncActionToken) {
+                            DisconnectedBufferOptions disconnectedBufferOptions = new DisconnectedBufferOptions();
+                            disconnectedBufferOptions.setBufferEnabled(true);
+                            disconnectedBufferOptions.setBufferSize(100);
+                            disconnectedBufferOptions.setPersistBuffer(false);
+                            disconnectedBufferOptions.setDeleteOldestMessages(false);
+                            mqttAndroidClient.setBufferOpts(disconnectedBufferOptions);
+                        }
+
+                        @Override
+                        public void onFailure(IMqttToken asyncActionToken, Throwable exception) {
+                            Log.d(TAG, "Failed to connect to: " + MQTT_BROKER_URI);
+                        }
+                    });
+
+
+                } catch (MqttException ex){
+                    Log.d(TAG, "Connection failed " + ex.toString());
+                }
             }
-        });*/
-
-
+        });
     }
 
     public void start() {
-        mHandler.post(mPublishRunnable);
+        if(mqttAndroidClient.isConnected()) {
+            mHandler.post(mPublishRunnable);
+        }
     }
 
     public void stop() {
@@ -155,14 +150,13 @@ public class MqttPublisher {
 
             @Override
             public void run() {
-              /*  try {
-                    mHttpTransport.shutdown();
-                } catch (IOException e) {
-                    Log.d(TAG, "error destroying http transport");
-                } finally {
-                    mHttpTransport = null;
-                    mPubsub = null;
-                }*/
+                try {
+                    if(mqttAndroidClient.isConnected()) {
+                        mqttAndroidClient.disconnect();
+                    }
+                } catch (MqttException e) {
+                    Log.d(TAG, "Disconnection error" + e.toString());
+                }
             }
         });
         mHandlerThread.quitSafely();
