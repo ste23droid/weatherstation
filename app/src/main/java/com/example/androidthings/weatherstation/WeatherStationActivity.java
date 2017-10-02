@@ -44,6 +44,7 @@ import com.google.android.things.pio.PeripheralManagerService;
 
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.text.DecimalFormat;
 
 import rx.Observable;
 import rx.Subscriber;
@@ -315,7 +316,7 @@ public class WeatherStationActivity extends Activity {
             Log.d(TAG, "sensor changed: " + mLastTemperature);
 
             if (mDisplayMode == DisplayMode.TEMPERATURE) {
-                updateDisplay(mLastTemperature);
+                updateDisplayTemperature(mLastTemperature);
             }
         }
 
@@ -334,9 +335,9 @@ public class WeatherStationActivity extends Activity {
             Log.d(TAG, "sensor changed: " + mLastPressure);
 
             if (mDisplayMode == DisplayMode.PRESSURE) {
-                updateDisplay(mLastPressure);
+                updateDisplayPressure(mLastPressure);
             }
-            updateBarometer(mLastPressure);
+            updateLedStrip(mLastPressure);
         }
 
         @Override
@@ -453,7 +454,7 @@ public class WeatherStationActivity extends Activity {
     public boolean onKeyDown(int keyCode, KeyEvent event) {
         if (keyCode == KeyEvent.KEYCODE_A) {
             mDisplayMode = DisplayMode.PRESSURE;
-            updateDisplay(mLastPressure);
+            updateDisplayTemperature(mLastPressure);
             try {
                 mLedRed.setValue(true);
             } catch (IOException e) {
@@ -468,7 +469,7 @@ public class WeatherStationActivity extends Activity {
     public boolean onKeyUp(int keyCode, KeyEvent event) {
         if (keyCode == KeyEvent.KEYCODE_A) {
             mDisplayMode = DisplayMode.TEMPERATURE;
-            updateDisplay(mLastTemperature);
+            updateDisplayTemperature(mLastTemperature);
             try {
                 mLedRed.setValue(false);
             } catch (IOException e) {
@@ -550,17 +551,33 @@ public class WeatherStationActivity extends Activity {
         }
     }
 
-    private void updateDisplay(float value) {
+    private void updateDisplayTemperature(float temperature) {
         if (mDisplay != null) {
             try {
-                mDisplay.display(value);
+                // display modified temperature given HAT and CPU proximity
+                //formula taken from here: https://hackernoon.com/trying-out-the-android-things-weatherstation-codelab-d3f260b59c2f
+                if(mCpuTemperature > temperature) {
+                    temperature = (temperature - HEATING_COEFFICIENT * mCpuTemperature) / (1 - HEATING_COEFFICIENT);
+                }
+                mDisplay.display(new DecimalFormat("##").format(temperature));
             } catch (IOException e) {
                 Log.e(TAG, "Error setting display", e);
             }
         }
     }
 
-    private void updateBarometer(float pressure) {
+    private void updateDisplayPressure(float pressure) {
+        if (mDisplay != null) {
+            try {
+                mDisplay.display(pressure);
+            } catch (IOException e) {
+                Log.e(TAG, "Error setting display", e);
+            }
+        }
+    }
+
+
+    private void updateLedStrip(float pressure) {
         // Update UI
         if (!mUpdateUIHandler.hasMessages(MSG_UPDATE_BAROMETER_UI)) {
             mUpdateUIHandler.sendEmptyMessageDelayed(MSG_UPDATE_BAROMETER_UI, 100);
