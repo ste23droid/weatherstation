@@ -55,7 +55,7 @@ public class MqttPublisher {
     private float mLastTemperature = Float.NaN;
     private float mLastPressure = Float.NaN;
 
-    //thingSpeak supports publishing every 15 seconds
+    //thingSpeak supports publishing every > 15 seconds
     private static final long PUBLISH_INTERVAL_MS = 20000;
 
     private static final String MQTT_BROKER_URI = "ssl://mqtt.thingspeak.com:8883";

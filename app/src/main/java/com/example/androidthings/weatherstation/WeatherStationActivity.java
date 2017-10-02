@@ -494,7 +494,7 @@ public class WeatherStationActivity extends Activity {
         if (mDisplay != null) {
             try {
                 // display modified temperature given HAT and CPU proximity
-                //formula taken from here: https://hackernoon.com/trying-out-the-android-things-weatherstation-codelab-d3f260b59c2f
+                // formula taken from here: https://hackernoon.com/trying-out-the-android-things-weatherstation-codelab-d3f260b59c2f
                 if(mCpuTemperature > temperature) {
                     temperature = (temperature - HEATING_COEFFICIENT * mCpuTemperature) / (1 - HEATING_COEFFICIENT);
                 }
