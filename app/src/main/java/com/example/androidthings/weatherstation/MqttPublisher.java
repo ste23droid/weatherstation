@@ -46,7 +46,7 @@ import java.io.InputStream;
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 
-class MqttPublisher {
+public class MqttPublisher {
     private static final String TAG = MqttPublisher.class.getSimpleName();
 
     private final Context mContext;

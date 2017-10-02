@@ -576,7 +576,6 @@ public class WeatherStationActivity extends Activity {
         }
     }
 
-
     private void updateLedStrip(float pressure) {
         // Update UI
         if (!mUpdateUIHandler.hasMessages(MSG_UPDATE_BAROMETER_UI)) {
